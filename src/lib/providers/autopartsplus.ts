@@ -8,7 +8,24 @@ import {
 
 const PROVIDER_ID = 'autopartsplus' as const;
 
-function extractYearRangeFromFits(fitsVehicles?: string[]): {
+interface AutoPartsPlusItem {
+  unit_price: number;
+  currency_code: string;
+  qty_available: number;
+  fits_vehicles?: string[];
+  spec_keys?: string[];
+  spec_values?: string[];
+  sku: string;
+  title: string;
+  brand_name: string;
+  category_name?: string;
+  img_urls?: string[];
+  desc?: string;
+}
+
+function extractYearRangeFromFits(
+  fitsVehicles?: string[],
+): {
   yearFrom?: number;
   yearTo?: number;
 } {
@@ -28,7 +45,9 @@ function extractYearRangeFromFits(fitsVehicles?: string[]): {
   };
 }
 
-function mapAutoPartsPlusItemToProduct(item: any): ProductSummary {
+function mapAutoPartsPlusItemToProduct(
+  item: AutoPartsPlusItem,
+): ProductSummary {
   const offer: ProviderOffer = {
     provider: PROVIDER_ID,
     price: item.unit_price,
@@ -49,7 +68,11 @@ function mapAutoPartsPlusItemToProduct(item: any): ProductSummary {
     item.spec_keys.length === item.spec_values.length
   ) {
     for (let i = 0; i < item.spec_keys.length; i++) {
-      specs[item.spec_keys[i]] = item.spec_values[i];
+      const key = item.spec_keys[i];
+      const value = item.spec_values[i];
+      if (typeof key === 'string' && typeof value === 'string') {
+        specs[key] = value;
+      }
     }
   }
 
@@ -75,7 +98,10 @@ export async function getAutoPartsPlusCatalog(
     `/api/autopartsplus/catalog?page=${page}&limit=${limit}`,
   );
 
-  const parts = Array.isArray(json.parts) ? json.parts : [];
+  const parts = Array.isArray(json.parts)
+    ? (json.parts as AutoPartsPlusItem[])
+    : [];
+
   return parts.map(mapAutoPartsPlusItemToProduct);
 }
 
@@ -86,7 +112,9 @@ export async function getAutoPartsPlusBySku(
     `/api/autopartsplus/parts?sku=${encodeURIComponent(sku)}`,
   );
 
-  const parts = Array.isArray(json.parts) ? json.parts : [];
+  const parts = Array.isArray(json.parts)
+    ? (json.parts as AutoPartsPlusItem[])
+    : [];
   if (parts.length === 0) return null;
 
   const summary = mapAutoPartsPlusItemToProduct(parts[0]);

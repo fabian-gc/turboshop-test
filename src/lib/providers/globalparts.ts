@@ -8,7 +8,96 @@ import {
 
 const PROVIDER_ID = 'globalparts' as const;
 
-function extractYearRangeFromGlobalParts(item: any): {
+interface GlobalPartsYearRange {
+  StartYear?: string | number;
+  EndYear?: string | number;
+}
+
+interface GlobalPartsCompatibleVehicle {
+  YearRange?: GlobalPartsYearRange;
+}
+
+interface GlobalPartsVehicleCompatibility {
+  CompatibleVehicles?: GlobalPartsCompatibleVehicle[];
+}
+
+interface GlobalPartsSkuRef {
+  Value?: string;
+}
+
+interface GlobalPartsExternalReferences {
+  SKU?: GlobalPartsSkuRef;
+}
+
+interface GlobalPartsItemHeader {
+  ExternalReferences?: GlobalPartsExternalReferences;
+}
+
+interface GlobalPartsListPrice {
+  Amount?: number;
+  CurrencyCode?: string;
+}
+
+interface GlobalPartsPricingInfo {
+  ListPrice?: GlobalPartsListPrice;
+}
+
+interface GlobalPartsQuantityInfo {
+  AvailableQuantity?: number;
+}
+
+interface GlobalPartsAvailabilityInfo {
+  QuantityInfo?: GlobalPartsQuantityInfo;
+}
+
+interface GlobalPartsNameInfo {
+  DisplayName?: string;
+  ShortName?: string;
+}
+
+interface GlobalPartsBrandInfo {
+  BrandName?: string;
+}
+
+interface GlobalPartsCategory {
+  Name?: string;
+}
+
+interface GlobalPartsCategoryInfo {
+  PrimaryCategory?: GlobalPartsCategory;
+}
+
+interface GlobalPartsDescription {
+  FullText?: string;
+}
+
+interface GlobalPartsProductDetails {
+  NameInfo?: GlobalPartsNameInfo;
+  BrandInfo?: GlobalPartsBrandInfo;
+  CategoryInfo?: GlobalPartsCategoryInfo;
+  Description?: GlobalPartsDescription;
+}
+
+interface GlobalPartsImage {
+  ImageUrl?: string;
+}
+
+interface GlobalPartsMediaAssets {
+  Images?: GlobalPartsImage[];
+}
+
+interface GlobalPartsItem {
+  VehicleCompatibility?: GlobalPartsVehicleCompatibility;
+  ItemHeader?: GlobalPartsItemHeader;
+  PricingInfo?: GlobalPartsPricingInfo;
+  AvailabilityInfo?: GlobalPartsAvailabilityInfo;
+  ProductDetails?: GlobalPartsProductDetails;
+  MediaAssets?: GlobalPartsMediaAssets;
+}
+
+function extractYearRangeFromGlobalParts(
+  item: GlobalPartsItem,
+): {
   yearFrom?: number;
   yearTo?: number;
 } {
@@ -30,7 +119,9 @@ function extractYearRangeFromGlobalParts(item: any): {
   };
 }
 
-function mapGlobalPartsItemToProduct(item: any): ProductSummary {
+function mapGlobalPartsItemToProduct(
+  item: GlobalPartsItem,
+): ProductSummary {
   const header = item.ItemHeader ?? {};
   const skuRef = header.ExternalReferences?.SKU;
 
@@ -39,7 +130,7 @@ function mapGlobalPartsItemToProduct(item: any): ProductSummary {
 
   const offer: ProviderOffer = {
     provider: PROVIDER_ID,
-    price: pricing?.Amount,
+    price: pricing?.Amount ?? 0,
     currency: pricing?.CurrencyCode ?? 'CLP',
     stock: availability?.AvailableQuantity ?? 0,
     lastUpdated: new Date().toISOString(),
@@ -59,9 +150,9 @@ function mapGlobalPartsItemToProduct(item: any): ProductSummary {
     : undefined;
 
   return {
-    sku: skuRef?.Value,
-    name: nameInfo.DisplayName ?? nameInfo.ShortName,
-    brand: brandInfo.BrandName,
+    sku: skuRef?.Value ?? '',
+    name: nameInfo.DisplayName ?? nameInfo.ShortName ?? '',
+    brand: brandInfo.BrandName ?? '',
     model:
       productDetails.CategoryInfo?.PrimaryCategory?.Name ??
       undefined,
@@ -84,7 +175,9 @@ export async function getGlobalPartsCatalog(
     json?.ResponseEnvelope?.Body?.CatalogListing?.Items;
   if (!Array.isArray(items)) return [];
 
-  return items.map(mapGlobalPartsItemToProduct);
+  return (items as GlobalPartsItem[]).map(
+    mapGlobalPartsItemToProduct,
+  );
 }
 
 export async function getGlobalPartsBySku(
@@ -100,11 +193,12 @@ export async function getGlobalPartsBySku(
     json?.ResponseEnvelope?.Body?.SearchResults?.Items;
   if (!Array.isArray(items) || items.length === 0) return null;
 
-  const summary = mapGlobalPartsItemToProduct(items[0]);
+  const typedItems = items as GlobalPartsItem[];
+  const summary = mapGlobalPartsItemToProduct(typedItems[0]);
 
   return {
     ...summary,
     description:
-      items[0].ProductDetails?.Description?.FullText,
+      typedItems[0].ProductDetails?.Description?.FullText,
   };
 }

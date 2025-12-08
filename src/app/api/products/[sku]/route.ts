@@ -1,37 +1,34 @@
-// src/app/api/products/[sku]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchUnifiedCatalog } from '@/lib/providers';
+import type { ProductSummary } from '@/lib/types';
 
-type RouteParams = {
-  params: {
-    sku: string;
-  };
+// Opcional, pero suele ser útil para APIs que consultan datos externos
+export const dynamic = 'force-dynamic';
+
+type RouteContext = {
+  params: Promise<{ sku: string }>;
 };
 
 export async function GET(
-  _req: NextRequest,
-  { params }: RouteParams
+  _request: NextRequest,
+  context: RouteContext
 ) {
-  const sku = params.sku;
+  // En Next 16, params viene como Promise en este tipo de handler
+  const { sku } = await context.params;
+  const decodedSku = decodeURIComponent(sku);
 
-  try {
-    const catalog = await fetchUnifiedCatalog(1, 200);
-    const product = catalog.find((p) => p.sku === sku);
+  // Puedes ajustar el límite si quieres menos/más productos
+  const catalog = await fetchUnifiedCatalog(1, 500);
+  const product: ProductSummary | undefined = catalog.find(
+    (item) => item.sku === decodedSku
+  );
 
-    if (!product) {
-      console.log('SKU no encontrado en catálogo:', sku);
-      return NextResponse.json(
-        { error: 'Product not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(product);
-  } catch (error) {
-    console.error('Error en GET /api/products/[sku]:', error);
+  if (!product) {
     return NextResponse.json(
-      { error: 'Error fetching product detail' },
-      { status: 500 }
+      { error: 'Product not found' },
+      { status: 404 }
     );
   }
+
+  return NextResponse.json(product);
 }
