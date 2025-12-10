@@ -2,27 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchUnifiedCatalog } from '@/lib/providers';
 import type { ProductSummary } from '@/lib/types';
 
-// Para evitar caché agresiva si fuera necesario
+// Opcional, pero suele ser útil para APIs que consultan datos externos
 export const dynamic = 'force-dynamic';
 
+type RouteContext = {
+  params: Promise<{ sku: string }>;
+};
+
 export async function GET(
-  _req: NextRequest,
-  context: { params: Promise<{ sku: string }> }
+  _request: NextRequest,
+  context: RouteContext
 ) {
-  // En Next 16, el validador está esperando que "params" sea un Promise<{ sku }>
+  // En Next 16, params viene como Promise en este tipo de handler
   const { sku } = await context.params;
   const decodedSku = decodeURIComponent(sku);
 
-  // Traes un catálogo razonablemente grande y buscas el SKU
+  // Puedes ajustar el límite si quieres menos/más productos
   const catalog = await fetchUnifiedCatalog(1, 500);
-  const product = catalog.find(
-    (item: ProductSummary) => item.sku === decodedSku,
+  const product: ProductSummary | undefined = catalog.find(
+    (item) => item.sku === decodedSku
   );
 
   if (!product) {
     return NextResponse.json(
       { error: 'Product not found' },
-      { status: 404 },
+      { status: 404 }
     );
   }
 
