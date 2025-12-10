@@ -10,13 +10,16 @@ Este proyecto implementa un **marketplace de repuestos automotrices** que unific
 - **RepuestosMax**
 - **GlobalParts**
 
-Cada proveedor expone APIs con **esquemas distintos**, **latencias variables** y **fallos intermitentes**.
-El objetivo fue construir una arquitectura robusta que:
+Cada proveedor expone APIs con **esquemas distintos**, **latencias variables** y **fallos intermitentes**.  
+El objetivo es construir una arquitectura robusta que:
 
 - Unifique todos los formatos en un **contrato propio estable**.
 - Exponga un **backend interno** accesible desde el frontend.
-- Entregue al usuario búsqueda, filtros, paginación y actualización automática en tiempo real.
-- Soporte fallos parciales sin interrumpir la consulta del catálogo.
+- Entregue búsqueda, filtros y actualizaciones automáticas.
+- Soporte fallos parciales sin interrumpir el catálogo.
+- Entregue una vista de detalle y un listado de productos similares.
+
+---
 
 ## 🧱 Stack Tecnológico
 
@@ -24,108 +27,26 @@ El objetivo fue construir una arquitectura robusta que:
 |------|------------|
 | **Frontend** | Next.js 16 (App Router), React 19, TailwindCSS |
 | **Backend interno** | Next.js API Routes |
-| **Normalización de datos** | TypeScript + adaptadores por proveedor |
-| **Actualización en tiempo real** | Polling inteligente (15s) |
-| **Despliegue recomendado** | Railway / Vercel |
+| **Normalización** | TypeScript + adaptadores |
+| **Live updates** | Polling (15s) |
+| **Despliegue** | Vercel / Railway |
 
-## 🗂️ Estructura del proyecto
+---
 
-```
-/src
- ├── app
- │   ├── api
- │   │   └── products
- │   │        ├── route.ts          ← catálogo unificado + filtros
- │   │        └── [sku]/route.ts    ← detalle de producto unificado
- │   ├── product/[sku]/page.tsx     ← vista de detalle
- │   └── page.tsx                   ← catálogo con filtros + polling
- │
- ├── lib
- │   ├── types.ts                   ← contrato unificado: ProductSummary
- │   └── providers
- │        ├── index.ts              ← merge + filtros + normalización
- │        ├── autopartsplus.ts
- │        ├── repuestosmax.ts
- │        └── globalparts.ts
- │
- └── styles / components...
-```
+## 🔌 Endpoints internos
 
-## ⚙️ Instalación y ejecución
+### 📌 GET `/api/products`
+Parámetros:  
+`page`, `limit`, `search`, `brand`, `model`, `yearFrom`, `yearTo`
 
-### 1. Clonar el repositorio
-```bash
-git clone https://github.com/tu-usuario/turboshop-marketplace.git
-cd turboshop-marketplace
-```
-
-### 2. Instalar dependencias
-```bash
-npm install
-```
-
-### 3. Variables de entorno  
-Crear un archivo **.env.local** con:
-
-```
-PROVIDERS_BASE_URL=URL.app
-```
-
-### 4. Ejecutar en modo desarrollo
-```bash
-npm run dev
-```
-
-### 5. Abrir en navegador
-```
-http://localhost:3000
-```
-
-## 🔌 Backend interno – Endpoints normalizados
-
-### 📌 GET `/api/products?page=1&limit=12&search=&brand=&model=&yearFrom=&yearTo=`
-
-```json
-{
-  "data": [
-    {
-      "sku": "CO-MIQKH2RE",
-      "name": "Inyector Delantero",
-      "brand": "Gates",
-      "model": "Combustible",
-      "yearFrom": 2013,
-      "yearTo": 2014,
-      "thumbnailUrl": "...",
-      "offers": [
-        {
-          "provider": "autopartsplus",
-          "price": 45968,
-          "currency": "CLP",
-          "stock": 26,
-          "lastUpdated": "2025-12-08T18:24:58.082Z"
-        }
-      ]
-    }
-  ],
-  "page": 1,
-  "limit": 12
-}
-```
+Retorna catálogo normalizado.
 
 ### 📌 GET `/api/products/[sku]`
+Retorna detalle consolidado + ofertas por proveedor.
 
-```json
-{
-  "sku": "CO-MIQKH2RE",
-  "name": "Inyector Delantero",
-  "brand": "Gates",
-  "offers": [...]
-}
-```
+---
 
-## 🧠 Lógica de normalización
-
-### ✔️ Adaptadores por proveedor
+## 🧠 Normalización
 
 ```ts
 type ProductSummary = {
@@ -140,41 +61,84 @@ type ProductSummary = {
 };
 ```
 
-### ✔️ Merge inteligente por SKU
+### 🔄 Merge por SKU
 
 ```ts
-if (!existing) merged.set(sku, product);
-else merged.set(sku, {
-  ...existing,
-  offers: [...existing.offers, ...p.offers]
-});
+if (!existing) {
+  merged.set(sku, product);
+} else {
+  merged.set(sku, {
+    ...existing,
+    offers: [...existing.offers, ...product.offers],
+  });
+}
 ```
 
-### ✔️ Soporte a fallos parciales
+### ✔️ Manejo de fallos parciales
 
-```ts
-Promise.allSettled([...]);
+Se usa `Promise.allSettled()` para que un proveedor caído no afecte al catálogo.
+
+---
+
+## 🖥️ Instalación y ejecución
+
+### 1. Clonar
+
+```bash
+git clone https://github.com/TU-USUARIO/turboshop-marketplace.git
+cd turboshop-marketplace
 ```
 
-## 🔄 Actualización automática
+### 2. Instalar dependencias
 
-```tsx
-useEffect(() => {
-  load();
-  const id = setInterval(load, 15000);
-  return () => clearInterval(id);
-}, [page, filters]);
+```bash
+npm install
 ```
+
+### 3. Variables de entorno
+
+Crear `.env.local`:
+
+```ini
+PROVIDERS_BASE_URL=https://web-production-84144.up.railway.app
+```
+
+### 4. Ejecutar en desarrollo
+
+```bash
+npm run dev
+```
+
+---
+
+## 🗂️ Estructura
+
+```bash
+/src
+ ├── app
+ │   ├── api/products
+ │   │        ├── route.ts
+ │   │        └── [sku]/route.ts
+ │   ├── page.tsx
+ │   └── product/[sku]/page.tsx
+ ├── lib/providers
+ ├── lib/types.ts
+ └── styles / components...
+```
+
+---
 
 ## 🎨 UI/UX
 
-- Catálogo con tabla y miniaturas  
-- Búsqueda por texto  
-- Filtros avanzados  
-- Paginación  
-- Vista de detalle con todas las ofertas  
-- Indicador de actualización automática  
+- Catálogo completo en una sola vista  
+- Detalle por SKU  
+- Productos similares  
 - Dark mode  
+- Filtros rápidos  
+- Miniaturas en tabla  
+- Actualización automática  
+
+---
 
 ## 🧭 Arquitectura
 
@@ -183,30 +147,34 @@ flowchart LR
 
 A[Frontend Next.js] -- fetch /api/products --> B[Backend interno]
 
-B -- llama a proveedores --> P1[AutoPartsPlus API]
-B -- llama a proveedores --> P2[RepuestosMax API]
-B -- llama a proveedores --> P3[GlobalParts API]
+B -- llama proveedores --> P1[AutoPartsPlus]
+B -- llama proveedores --> P2[RepuestosMax]
+B -- llama proveedores --> P3[GlobalParts]
 
 P1 --> B
 P2 --> B
 P3 --> B
 
-B -- catálogo unificado --> A
-A -- render dinámico + polling --> Usuario
+B --> A
+A --> Usuario
 ```
 
-## 🚀 Deploy en Railway
+---
 
-1. Push al repo  
-2. Crear servicio  
-3. Setear `PROVIDERS_BASE_URL`  
-4. Deploy automático  
+## 🚀 Deploy
 
-## ✅ Estado actual
+- Vercel / Railway  
+- Hacer push al repo  
+- Configurar `PROVIDERS_BASE_URL`  
+- Deploy automático
 
-- Catálogo unificado funcionando  
-- Detalle por SKU  
-- Filtros avanzados  
-- Polling 15s  
-- Manejo de fallos  
-- Normalización robusta  
+---
+
+## ✅ Estado Final
+
+- Catálogo unificado sin paginación  
+- Vista de detalle con ofertas  
+- Productos similares  
+- Backend robusto ante fallos  
+- Normalización consistente  
+- UI limpia, responsiva y actualizada automáticamente  
