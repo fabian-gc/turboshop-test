@@ -1,6 +1,7 @@
 // src/app/product/[sku]/page.tsx
 import Link from 'next/link';
 import { fetchUnifiedCatalog } from '@/lib/providers';
+import type { ProductSummary } from '@/lib/types';
 
 type PageProps = {
   params: Promise<{
@@ -33,7 +34,8 @@ export default async function ProductPage({ params }: PageProps) {
     );
   }
 
-  const catalog = await fetchUnifiedCatalog(1, 200);
+  // Traemos un catálogo grande para buscar el producto y similares
+  const catalog = await fetchUnifiedCatalog(1, 500);
   const product = catalog.find((p) => p.sku === sku);
 
   if (!product) {
@@ -65,13 +67,28 @@ export default async function ProductPage({ params }: PageProps) {
           ? o.price
           : Math.min(acc, o.price)
         : acc,
-    null
+    null,
   );
 
   const totalStock = product.offers.reduce(
     (acc, o) => acc + (o.stock ?? 0),
-    0
+    0,
   );
+
+  // ===== Productos similares =====
+  const mainWords = product.name
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')) // limpiar signos
+    .filter((w) => w.length > 3); // ignorar palabras muy cortas (de, la, del, etc.)
+
+  const similarProducts: ProductSummary[] = catalog
+    .filter((p) => p.sku !== product.sku)
+    .filter((p) => {
+      const name = p.name.toLowerCase();
+      return mainWords.some((w) => w && name.includes(w));
+    })
+    .slice(0, 8); // máximo 8 similares
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
@@ -190,7 +207,7 @@ export default async function ProductPage({ params }: PageProps) {
                       </td>
                       <td className="px-4 py-2 text-xs text-slate-400">
                         {new Date(
-                          o.lastUpdated
+                          o.lastUpdated,
                         ).toLocaleString('es-CL')}
                       </td>
                     </tr>
@@ -199,6 +216,59 @@ export default async function ProductPage({ params }: PageProps) {
               </table>
             </div>
           </div>
+
+          {similarProducts.length > 0 && (
+            <div>
+              <h2 className="mb-2 text-lg font-semibold">
+                Productos similares
+              </h2>
+              <div className="overflow-x-auto rounded-lg border border-slate-800">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-900/70">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-slate-300">
+                        SKU
+                      </th>
+                      <th className="px-4 py-2 text-left text-slate-300">
+                        Nombre
+                      </th>
+                      <th className="px-4 py-2 text-left text-slate-300">
+                        Marca
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {similarProducts.map((p) => (
+                      <tr
+                        key={p.sku}
+                        className="border-t border-slate-800 hover:bg-slate-800/40"
+                      >
+                        <td className="px-4 py-2 font-mono text-xs">
+                          <Link
+                            href={`/product/${p.sku}`}
+                            className="hover:underline"
+                          >
+                            {p.sku}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2">
+                          <Link
+                            href={`/product/${p.sku}`}
+                            className="hover:underline"
+                          >
+                            {p.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2">
+                          {p.brand}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </main>

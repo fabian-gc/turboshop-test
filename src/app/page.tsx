@@ -1,16 +1,15 @@
 // src/app/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ProductSummary } from '@/lib/types';
 
-const LIMIT = 12;
-const REFRESH_MS = 15000; // 15 segundos de polling
+const LIMIT = 500; // cargamos todo de una
+const REFRESH_MS = 15000; // polling cada 15s (puedes subirlo si quieres)
 
 export default function HomePage() {
   const [products, setProducts] = useState<ProductSummary[]>([]);
-  const [page, setPage] = useState(1);
 
   const [search, setSearch] = useState('');
   const [brand, setBrand] = useState('');
@@ -20,44 +19,44 @@ export default function HomePage() {
 
   const [loading, setLoading] = useState(false);
 
-  // Carga + polling
+  const load = useCallback(async () => {
+    setLoading(true);
+
+    const params = new URLSearchParams({
+      page: '1',
+      limit: String(LIMIT),
+    });
+
+    if (search.trim()) params.set('search', search.trim());
+    if (brand.trim()) params.set('brand', brand.trim());
+    if (model.trim()) params.set('model', model.trim());
+    if (yearFrom.trim()) params.set('yearFrom', yearFrom.trim());
+    if (yearTo.trim()) params.set('yearTo', yearTo.trim());
+
+    const res = await fetch(`/api/products?${params.toString()}`);
+    const json = await res.json();
+
+    setProducts(json.data ?? []);
+    setLoading(false);
+  }, [search, brand, model, yearFrom, yearTo]);
+
+  // Carga inicial + polling
   useEffect(() => {
     let active = true;
 
-    async function load() {
-      setLoading(true);
-
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(LIMIT),
-      });
-
-      if (search.trim()) params.set('search', search.trim());
-      if (brand.trim()) params.set('brand', brand.trim());
-      if (model.trim()) params.set('model', model.trim());
-      if (yearFrom.trim()) params.set('yearFrom', yearFrom.trim());
-      if (yearTo.trim()) params.set('yearTo', yearTo.trim());
-
-      const res = await fetch(`/api/products?${params.toString()}`);
-      const json = await res.json();
-
+    const run = async () => {
       if (!active) return;
+      await load();
+    };
 
-      setProducts(json.data ?? []);
-      setLoading(false);
-    }
-
-    load();
-    const id = setInterval(load, REFRESH_MS);
+    run();
+    const id = setInterval(run, REFRESH_MS);
 
     return () => {
       active = false;
       clearInterval(id);
     };
-  }, [page, search, brand, model, yearFrom, yearTo]);
-
-  const hasPrev = page > 1;
-  const hasNext = products.length === LIMIT; // heurística simple
+  }, [load]);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
@@ -78,7 +77,7 @@ export default function HomePage() {
             className="flex flex-wrap items-end gap-3"
             onSubmit={(e) => {
               e.preventDefault();
-              setPage(1); // reset de página al aplicar filtros
+              load(); // recarga con los filtros actuales
             }}
           >
             <div className="flex flex-col">
@@ -156,7 +155,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* Tabla catálogo */}
+        {/* Tabla catálogo (todos los productos) */}
         <section className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-900/80">
@@ -194,11 +193,11 @@ export default function HomePage() {
 
                 const totalStock = p.offers.reduce(
                   (acc, o) => acc + (o.stock ?? 0),
-                  0
+                  0,
                 );
 
                 const providers = Array.from(
-                  new Set(p.offers.map((o) => o.provider))
+                  new Set(p.offers.map((o) => o.provider)),
                 ).join(', ');
 
                 return (
@@ -271,31 +270,6 @@ export default function HomePage() {
             </tbody>
           </table>
         </section>
-
-        {/* Paginación */}
-        <footer className="mt-4 flex items-center justify-between text-sm text-slate-300">
-          <div>
-            Página <span className="font-semibold">{page}</span>
-          </div>
-          <div className="flex gap-2">
-            <button
-              className="rounded-md border border-slate-700 px-3 py-1 text-xs disabled:opacity-40"
-              onClick={() =>
-                setPage((p) => Math.max(1, p - 1))
-              }
-              disabled={!hasPrev}
-            >
-              ← Anterior
-            </button>
-            <button
-              className="rounded-md border border-slate-700 px-3 py-1 text-xs disabled:opacity-40"
-              onClick={() => setPage((p) => p + 1)}
-              disabled={!hasNext}
-            >
-              Siguiente →
-            </button>
-          </div>
-        </footer>
       </div>
     </main>
   );

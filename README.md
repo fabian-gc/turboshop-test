@@ -68,7 +68,7 @@ npm install
 Crear un archivo **.env.local** con:
 
 ```
-PROVIDERS_BASE_URL=https://web-production-84144.up.railway.app
+PROVIDERS_BASE_URL=URL.app
 ```
 
 ### 4. Ejecutar en modo desarrollo
